@@ -19,7 +19,7 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import cross_val_score
 from spellchecker import SpellChecker
-
+import seaborn as sns
 
 
 
@@ -41,7 +41,7 @@ def expand_contractions(text):
     text = contractions.fix(text)
     return text
 
-def model_result(model, X_tran, y_train, X_test, y_test, model_name, class_names):
+def model_result(model, X_tran, y_train, X_test, y_test, model_name, class_names, title):
 
   mod = model.fit(X_tran, y_train)
   y_pred = mod.predict(X_test)
@@ -87,6 +87,12 @@ def model_result(model, X_tran, y_train, X_test, y_test, model_name, class_names
   plt.xticks(fontsize = 14)   
   plt.yticks(fontsize = 14)
 
+  # save plot
+  with open(f"plot_{title}.json", "w") as plot:
+      plot_dict = {
+          "plot": [{"features": name, "x": val} for name, val in zip(x1, y1)]
+      }
+      json.dump(plot_dict, plot)
   print('Classification_report:', '\n', classification_report(y_test, y_pred, target_names=class_names))
 
 def Cr_Val(model, X, y, cv):

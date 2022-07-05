@@ -72,7 +72,7 @@ warnings.filterwarnings('ignore')
 
 ## Read data
 
-data = pd.read_csv('/home/tanya/Education/ML_flow/data/LargeMovieReviewDataset.csv')
+data = pd.read_csv('/home/asdf/prj/MLFlow/data/LargeMovieReviewDataset.csv')
 
 ## Splitting
 
@@ -96,7 +96,7 @@ train['number_of_sentences'] = train.review.apply(lambda x: len(sent_tokenize(x)
 
 train_pipe = pipe(data.loc[train_index])
 
-train_pipe.to_pickle('/home/tanya/Education/ML_flow/out/train_pipe.pkl')
+train_pipe.to_csv('/home/asdf/prj/MLFlow/out/train_pipe.csv', sep=";")
 
 # test pipe
 
@@ -104,5 +104,5 @@ test_pipe = pipe(test)
 
 # Save test processing
 
-test_pipe.to_pickle('/home/tanya/Education/ML_flow/out/test_pipe.pkl')
+test_pipe.to_csv('/home/asdf/prj/MLFlow/out/test_pipe.csv', sep=";")
 
