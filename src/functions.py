@@ -264,12 +264,12 @@ def pipe(df):
 
   return df
 
-def objective(space):
+def objective(space, model, train_X, train_y, cv):
     params = {
         'penalty': space['clf__penalty'],
         'C': space['clf__C'],
     }
-    clf = my_pipeline.set_params(clf__penalty = params['penalty'], clf__C = params['C'])
+    clf = model.set_params(clf__penalty = params['penalty'], clf__C = params['C'])
     score = cross_val_score(estimator = clf,
                             X = train_X,
                             y = train_y,

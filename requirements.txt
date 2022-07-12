@@ -19,3 +19,4 @@ hyperopt
 seaborn
 mlflow
 gevent
+dvc
