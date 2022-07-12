@@ -1,4 +1,8 @@
+
+
 # from psutil import STATUS_LOCKED
+import os
+from tokenize import Triple
 from functions import *
 import numpy as np
 import pandas as pd
@@ -13,16 +17,21 @@ from sklearn.model_selection import (
     cross_val_score
 )
 from sklearn.pipeline import Pipeline
-from hyperopt import hp, fmin, tpe, Trials, STATUS_OK
 from functools import partial
+import mlflow
+from mlflow.tracking import MlflowClient
+from urllib.parse import urlparse
+import yaml
+import os
 
-# Models
+config_path = os.path.join('/home/asdf/prj/MLFlow/config/config.yaml')
+config = yaml.safe_load(open(config_path))['train_model']
 
 ## Preprocessed data
 
-test_preprocessed = pd.read_csv('/home/asdf/prj/MLFlow/out/test_pipe.csv', sep=';')
+test_preprocessed = pd.read_csv(config['data_path_test'], sep=';')
 
-train_preprocessed = pd.read_csv('/home/asdf/prj/MLFlow/out/train_pipe.csv', sep=';')
+train_preprocessed = pd.read_csv(config['data_path_train'], sep=';')
 
 # Splitting
 
@@ -34,138 +43,100 @@ test_y = test_preprocessed.sentiment
 
 class_names = ['negative', 'positive']
 
-#####################################################################################################################################################################
+
+# client = MlflowClient()
+# for i in client.list_experiments():
+#     print(i)
+
+# #####################################################################################################################################################################
+# # mlflow.set_tracking_uri('/home/asdf/prj/MLFlow/src/mlruns')
+# # client = MlflowClient()
+# # # mlflow.set_experiment("/my-experiment")
+# # mlflow.set_tracking_uri("http://127.0.0.1:5000/")
+# # # print(type(client.get_experiment_by_name('First').experiment_id))
+# client.delete_experiment(client.get_experiment_by_name('first_track').experiment_id)
+mlflow.set_experiment(experiment_name = config["experiment_name"])
+# # mlflow.set_tags({'tag_name': "TEST_EXP"})
+# # mlflow.sklearn.autolog()
 
 ## Logistic regression
 
 
 # Baseline
 
+params = {"random_state": config['random_state'], 'solver': config['solver']}
+
+cv = StratifiedShuffleSplit(n_splits=config['n_splits'], test_size=config['test_size'], random_state=config['random_state'])
+# vectorizer = TfidfVectorizer()
+# vector_data_train = vectorizer.fit_transform(train_X)
+# lr = LogisticRegression()
+
 my_pipeline = Pipeline([
     ('vectorizer', TfidfVectorizer()),
-    ('clf', LogisticRegression(random_state=1, solver='liblinear'))
+    ('clf', LogisticRegression(random_state = params['random_state'], solver = params['solver']))
 ])
 
 # Train
-model_result(my_pipeline,
-             train_X,
-             train_y,
-             train_X,  
-             train_y,
-             model_name = 'Logistic Regression',
-             class_names = class_names
-             )
 
-ROC_AUC_train_LR = round(roc_auc_score(train_y, my_pipeline.predict_proba(train_X)[:, 1]), 2)
-print(f'ROC_AUC train score = {ROC_AUC_train_LR}')
+with mlflow.start_run(run_name=config["run_name"], tags = {config['tag_name_key']: config['tag_name_value']}):
+    model_result(my_pipeline,
+                train_X, 
+                train_y,
+                train_X, 
+                )
+                
+    ROC_AUC_train_LR = round(roc_auc_score(train_y, my_pipeline.predict_proba(train_X)[:, 1]), 2)
+    
+    mlflow.log_params(params)
+    mlflow.log_metric("ROC_AUC_train_LR", ROC_AUC_train_LR)
+    mlflow.sklearn.log_model(my_pipeline, 'model')
+
+    conf_matr = conf_matrix(test_y, class_names, model_result(my_pipeline, train_X, train_y, test_X))
+
+    plot_conf_matrix('Logistic Regression', class_names, conf_matr)
+
+
+
+    # # Model registry does not work with file store
+    # if tracking_url_type_store != "file":
+
+    #     # Register the model
+    #     # There are other ways to use the Model Registry, which depends on the use case,
+    #     # please refer to the doc for more information:
+    #     # https://mlflow.org/docs/latest/model-registry.html#api-workflow
+    #     mlflow.sklearn.log_model(lr, "model", registered_model_name="ElasticnetWineModel")
+    # else:
+    #     mlflow.sklearn.log_model(lr, "model")
 
 # # Cross-validaion
 
-cv = StratifiedShuffleSplit(n_splits=3, test_size=0.2, random_state=42)
+# ROC_AUC_cv_LR = np.mean(cross_val_score(my_pipeline, X = train_X, y = train_y, cv = cv, scoring = 'roc_auc'))
 
-ROC_AUC_cv_LR = np.mean(cross_val_score(my_pipeline, X = train_X, y = train_y, cv = cv, scoring = 'roc_auc'))
-
-def Cr_Val(model, X, y, cv):
-    CV_score = np.mean(cross_val_score(model, X = X, y = y, cv = cv, scoring = 'roc_auc'))
-    return round(CV_score, 2)
-
-ROC_AUC_cv_LR = Cr_Val(my_pipeline, train_X, train_y, cv)
-print(f'ROC_AUC_cv_LR_mean_score_train = ', ROC_AUC_cv_LR)
+# ROC_AUC_cv_LR = Cr_Val(my_pipeline, train_X, train_y, cv)
+# print(f'ROC_AUC_cv_LR_mean_score_train = ', ROC_AUC_cv_LR)
 
 
-# # Test
-model_result(my_pipeline,
-             train_X,
-             train_y,
-             test_X,  
-             test_y,
-             model_name = 'Logistic Regression',
-             class_names = class_names
-             )
+# # # Test
+# model_result(my_pipeline,
+#              train_X,
+#              train_y,
+#              test_X,  
+#              test_y,
+#              model_name = 'Logistic Regression',
+#              class_names = class_names,
+#              title = 'Logistic Regression'
+#              )
 
-ROC_AUC_test_LR = round(roc_auc_score(test_y, my_pipeline.predict_proba(test_X)[:, 1]), 2)
-print(f'ROC_AUC_cv_LR_mean_score_test =  {ROC_AUC_test_LR}')
+# ROC_AUC_test_LR = round(roc_auc_score(test_y, my_pipeline.predict_proba(test_X)[:, 1]), 2)
+# print(f'ROC_AUC_cv_LR_mean_score_test =  {ROC_AUC_test_LR}')
 
-# presearch
+# # Search
 
-def objective(space):
-    params = {
-        'penalty': space['clf__penalty'],
-        'C': space['clf__C'],
-    }
-    clf = my_pipeline.set_params(clf__penalty = params['penalty'], clf__C = params['C'])
-    score = cross_val_score(estimator = clf,
-                            X = train_X,
-                            y = train_y,
-                            scoring = 'roc_auc',
-                            cv = cv,
-                            )
-
-    print(f"AUC {score}, params {params}")
-    return {'loss': -score.mean(), 
-            'params': search_space,
-            'status': STATUS_OK}
-
-search_space = {'clf__penalty': hp.choice(label='penalty', options=['l1', 'l2']),
-                'clf__C': hp.uniform(label='C', low = 0.0001, high = 100)}
-
-
-trials = Trials()
-
-best = fmin(
-        # optimization function
-        fn = objective,
-        space = search_space,
-        algo = tpe.suggest,
-        max_evals = 100,
-        trials = trials,
-        rstate = np.random.default_rng(1),
-        show_progressbar = True
-)
-
-print(f'best - {best}')
-
-# #Search
-
-# search_space = {'clf__penalty': hp.choice(label='penalty', options=['l1', 'l2']),
-#                 'clf__C': hp.loguniform(label='C', low=2*np.log(10), high=4*np.log(10))}
-
-# def objective(search_space):
-#     '''
-#     Cross validation
-
-#     params: dict of parameters
-#     pipeline: model
-#     X_train: features
-#     y_train: labels
-
-#     return: mean score'''
-
-#     # set model's paraneters
-#     my_pipeline.set_params(search_space)
-
-#     # cross-validation's parameters
-#     cv = StratifiedShuffleSplit(n_splits=5, test_size=0.3, random_state=42)
-
-#     # cross_validation
-#     score = cross_val_score(estimator=pipeline,
-#                             X = train_X,
-#                             y = train_y,
-#                             scoring = 'roc_auc',
-#                             cv = cv,
-#                             )
-#     print("AUC {:.3f} params {}".format(score, search_space))
-
-#     return {'loss': -score.mean(), 
-#             'params': search_space,
-#             'status': STATUS_OK}
-
-# # for experiment tracking
 # trials = Trials()
 
 # best = fmin(
 #         # optimization function
-#         fn = partial(objective, pipeline = my_pipeline, X_train = train_X, y_train = train_y),
+#         fn = objective,
 #         space = search_space,
 #         algo = tpe.suggest,
 #         max_evals = 100,
@@ -175,40 +146,35 @@ print(f'best - {best}')
 # )
 
 # print(f'best - {best}')
-# print(f'trials - {trials.trials}')
-# print(f'results - {trials.results}')
-# print(f'statuses - {trials.statuses()}')
-# print(f'losses - {trials.losses()}')
 
+# # # Best model
 
-# # Best model
+# best = {'C': 2.64158322665802, 'penalty': 1}
+# penalty_list = ['l1', 'l2', 'elasticnet']
 
-best = {'C': 2.64158322665802, 'penalty': 1}
-penalty_list = ['l1', 'l2', 'elasticnet']
+# my_pipeline_tuned = Pipeline([
+#     ('vectorizer', TfidfVectorizer()),
+#     ('clf', LogisticRegression(C = best['C'], 
+#                                penalty = penalty_list[best['penalty']],
+#                                solver = 'liblinear',
+#                                random_state = 42))
+# ])
 
-my_pipeline_tuned = Pipeline([
-    ('vectorizer', TfidfVectorizer()),
-    ('clf', LogisticRegression(C = best['C'], 
-                               penalty = penalty_list[best['penalty']],
-                               solver = 'liblinear',
-                               random_state = 42))
-])
+# model_result(my_pipeline_tuned,
+#              train_X,
+#              train_y,
+#              test_X,  
+#              test_y,
+#              model_name = 'Logistic Regression',
+#              class_names = class_names
+#              )
 
-model_result(my_pipeline_tuned,
-             train_X,
-             train_y,
-             test_X,  
-             test_y,
-             model_name = 'Logistic Regression',
-             class_names = class_names
-             )
+# ROC_AUC_test_LR_tuned = round(roc_auc_score(test_y, my_pipeline_tuned.predict_proba(test_X)[:, 1]), 2)
+# print(f'ROC_AUC_test_LR_tuned = {ROC_AUC_test_LR_tuned}')
 
-ROC_AUC_test_LR_tuned = round(roc_auc_score(test_y, my_pipeline_tuned.predict_proba(test_X)[:, 1]), 2)
-print(f'ROC_AUC_test_LR_tuned = {ROC_AUC_test_LR_tuned}')
+# # Feature importance plots
 
-# Feature importance plots
-
-feature_importance(my_pipeline_tuned, 20)
-print('plot')
-r_a_score(my_pipeline_tuned, train_X, train_y, test_X, test_y)
-print('r_a_score')
+# feature_importance(my_pipeline_tuned, 20)
+# print('plot')
+# r_a_score(my_pipeline_tuned, train_X, train_y, test_X, test_y)
+# print('r_a_score')

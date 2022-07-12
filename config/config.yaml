@@ -1,0 +1,20 @@
+# mlflow experiments create -n 'Logistic Regression' -l '/home/asdf/prj/MLFlow/src/mlruns'
+
+
+preparation:
+  data_path: '/home/asdf/prj/MLFlow/data/LargeMovieReviewDataset.csv'
+  n_splits: 10
+  test_size: 0.3
+  random_state: 42
+
+train_model:
+  experiment_name: 'Logistic Regresssion'
+  tag_name_key: 'tag_name'
+  tag_name_value: 'FIRST_TRIAL'
+  run_name: 'TEST'
+  data_path_test: '/home/asdf/prj/MLFlow/out/test_pipe.csv'
+  data_path_train: '/home/asdf/prj/MLFlow/out/train_pipe.csv'
+  n_splits: 5
+  test_size: 0.2
+  random_state: 1
+  solver: 'liblinear'

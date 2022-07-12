@@ -7,7 +7,6 @@ word2number
 contractions
 pyspellchecker==0.5.6
 pattern
-mlflow[extras]
 beautifulsoup4
 contractions
 nltk
@@ -19,3 +18,4 @@ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.3.1
 hyperopt
 seaborn
 mlflow
+gevent

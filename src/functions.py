@@ -20,8 +20,9 @@ from sklearn.metrics import (
 from sklearn.model_selection import cross_val_score
 from spellchecker import SpellChecker
 import seaborn as sns
-
-
+from hyperopt import hp, fmin, tpe, Trials, STATUS_OK
+from nltk.tokenize import sent_tokenize, word_tokenize
+import mlflow
 
 ## Auxiliary methods
 
@@ -41,22 +42,27 @@ def expand_contractions(text):
     text = contractions.fix(text)
     return text
 
-def model_result(model, X_tran, y_train, X_test, y_test, model_name, class_names, title):
-
+def model_result(model, X_tran, y_train, X_test):
   mod = model.fit(X_tran, y_train)
   y_pred = mod.predict(X_test)
+  # cvs = cross_val_score(mod, X_tran, y_train, cv = cv, scoring = 'roc_auc')
 
-  conf_matrix = pd.DataFrame(confusion_matrix(y_test, y_pred), index = class_names, columns = class_names)
+  return y_pred
 
-  conf = confusion_matrix(y_test, y_pred)
+def conf_matrix(y_test, class_names, model_result):
+  conf_matrix = pd.DataFrame(confusion_matrix(y_test, model_result), index = class_names, columns = class_names)
+  conf = confusion_matrix(y_test, model_result)
 
-  plt.figure(figsize=(20, 5))
-  plt.subplots_adjust(wspace=0.6, hspace=10) 
-  p1 = plt.subplot(1, 2, 1) # nrow 1 ncol 2 index 1 
-  plt.title(f'{model_name} confusion matrix', fontdict={'fontsize':16}, pad=12, fontweight= 'semibold');
-  sns.heatmap(conf/np.sum(conf, axis=1).reshape(-1,1),
-              annot=conf/np.sum(conf, axis=1).reshape(-1,1),
-              annot_kws={"size": 18},
+  return conf
+
+def plot_conf_matrix(model_name, class_names, conf_matrix):
+  fig = plt.figure(figsize=(12, 4))
+  plt.subplots_adjust(wspace=0.5, hspace=2) 
+  plt.subplot(1, 2, 1) # nrow 1 ncol 2 index 1 
+  plt.title(f'{model_name} confusion matrix', fontdict={'fontsize':13}, pad=12, fontweight= 'semibold');
+  sns.heatmap(conf_matrix/np.sum(conf_matrix, axis=1).reshape(-1,1),
+              annot=conf_matrix/np.sum(conf_matrix, axis=1).reshape(-1,1),
+              annot_kws={"size": 10},
               fmt='.2f',
               yticklabels=class_names,
               xticklabels=class_names,
@@ -65,15 +71,15 @@ def model_result(model, X_tran, y_train, X_test, y_test, model_name, class_names
               linewidths=0.2, 
               linecolor='gray'
               );
-  plt.xlabel('Predicted label', fontsize = 14);
-  plt.ylabel('True label', fontsize = 14);
-  plt.xticks(fontsize = 14)   
-  plt.yticks(fontsize = 14)
+  plt.xlabel('Predicted label', fontsize = 11);
+  plt.ylabel('True label', fontsize = 11);
+  plt.xticks(fontsize = 9)   
+  plt.yticks(fontsize = 9)
 
 
-  p2 = plt.subplot(1, 2, 2)
-  res = sns.heatmap(conf, annot=True,
-                    annot_kws={"size": 18},
+  plt.subplot(1, 2, 2)
+  sns.heatmap(conf_matrix, annot=True,
+                    annot_kws={"size": 10},
                     yticklabels=class_names,
                     xticklabels=class_names,
                     fmt='d', cmap='YlGn', 
@@ -81,19 +87,16 @@ def model_result(model, X_tran, y_train, X_test, y_test, model_name, class_names
                     linewidths=0.2, 
                     linecolor='gray')
 
-  plt.title(f'{model_name} confusion matrix', fontdict={'fontsize':16}, pad=12, fontweight= 'semibold');
-  plt.xlabel('Predicted label', fontsize = 14);
-  plt.ylabel('True label', fontsize = 14);
-  plt.xticks(fontsize = 14)   
-  plt.yticks(fontsize = 14)
+  plt.title(f'{model_name} confusion matrix', fontdict={'fontsize':13}, pad=12, fontweight= 'semibold');
+  plt.xlabel('Predicted label', fontsize = 11);
+  plt.ylabel('True label', fontsize = 11);
+  plt.xticks(fontsize = 9)   
+  plt.yticks(fontsize = 9)
+
 
   # save plot
-  with open(f"plot_{title}.json", "w") as plot:
-      plot_dict = {
-          "plot": [{"features": name, "x": val} for name, val in zip(x1, y1)]
-      }
-      json.dump(plot_dict, plot)
-  print('Classification_report:', '\n', classification_report(y_test, y_pred, target_names=class_names))
+  # plt.savefig('confusion_matrix_plot.png')
+  mlflow.log_figure(fig, artifact_file = 'plots/confusion_matrix_plot.png')
 
 def Cr_Val(model, X, y, cv):
     CV_score = np.mean(cross_val_score(model, X = X, y = y, cv = cv, scoring = 'roc_auc'))
@@ -196,6 +199,12 @@ def pipe(df):
   sb_stemmer = SnowballStemmer("english")
   WNLemmatizer = WordNetLemmatizer()
 
+  """Number_of_sentences"""
+  df['number_of_sentences'] = df.review.apply(lambda x: len(sent_tokenize(x)))
+
+  """Review's len"""
+  df['review_length'] = df.review.apply(len)
+
   """Remove HTML Tags"""
   df[col] = df[col].apply(lambda x: strip_html_tags(x))
   
@@ -254,3 +263,29 @@ def pipe(df):
   df[col_y] = df[col_y].replace({'positive': 1, 'negative': 0})
 
   return df
+
+def objective(space):
+    params = {
+        'penalty': space['clf__penalty'],
+        'C': space['clf__C'],
+    }
+    clf = my_pipeline.set_params(clf__penalty = params['penalty'], clf__C = params['C'])
+    score = cross_val_score(estimator = clf,
+                            X = train_X,
+                            y = train_y,
+                            scoring = 'roc_auc',
+                            cv = cv,
+                            )
+
+    print(f"AUC {score}, params {params}")
+    return {'loss': -score.mean(), 
+            'params': search_space,
+            'status': STATUS_OK}
+
+search_space = {'clf__penalty': hp.choice(label='penalty', options=['l1', 'l2']),
+                'clf__C': hp.uniform(label='C', low = 0.0001, high = 100)}
+
+
+def Cr_Val(model, X, y, cv):
+    CV_score = np.mean(cross_val_score(model, X = X, y = y, cv = cv, scoring = 'roc_auc'))
+    return round(CV_score, 2)
