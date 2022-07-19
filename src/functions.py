@@ -119,7 +119,7 @@ def feature_importance(clf, n_features):
   max_red = df.loc[df.colors == '#316879'][:n_features]
   fi = pd.concat([max_green, max_red])
 
-  fig, ax = plt.subplots(1, 2, figsize=(25, n_features/2))
+  fig, ax = plt.subplots(1, 2, figsize=(12, n_features/4))
   plt.subplots_adjust(wspace=0.4, hspace=0.6)
   plt.subplot(1, 2, 1) # nrow 1 ncol 2 index 1 
   sns.set (style = "whitegrid")
@@ -128,16 +128,16 @@ def feature_importance(clf, n_features):
               data=fi[:n_features],
               color = '#316879');
 
-  plt.title(f"Top {n_features} Features negative review", fontsize=25,  color='#4f4e4e', fontweight = 'demibold');
-  plt.xlabel("Absolute coefficients", fontsize=20,  color='#4f4e4e');
-  plt.ylabel("Feature names", fontsize=20,  color='#4f4e4e');
+  plt.title(f"Top {n_features} Features negative review", fontsize=13,  color='#4f4e4e', fontweight = 'demibold');
+  plt.xlabel("Absolute coefficients", fontsize=11,  color='#4f4e4e');
+  plt.ylabel("Feature names", fontsize=11,  color='#4f4e4e');
   sns.despine ();
-  plt.xticks (size = 20,  color='#4f4e4e');
-  plt.yticks (size = 20,  color='#4f4e4e');
+  plt.xticks (size = 10,  color='#4f4e4e');
+  plt.yticks (size = 10,  color='#4f4e4e');
   neg = mlines.Line2D([], [], color='#f47a60', marker='s', linestyle='None',
-                            markersize=10, label='negative');
+                            markersize=8, label='negative');
   pos = mlines.Line2D([], [], color='#316879', marker='s', linestyle='None',
-                            markersize=10, label='positive');
+                            markersize=8, label='positive');
 
   plt.subplot(1, 2, 2)
   sns.barplot(x="abs_value",
@@ -145,17 +145,18 @@ def feature_importance(clf, n_features):
               data=fi[n_features:],
               color = '#f47a60');
   plt.title(f"Top {n_features} features positive review", fontsize=25,  color='#4f4e4e', fontweight = 'demibold');
-  plt.xlabel("Absolute coefficients", fontsize=20,  color='#4f4e4e');
-  plt.ylabel("Feature names", fontsize=20,  color='#4f4e4e');
+  plt.xlabel("Absolute coefficients", fontsize=11,  color='#4f4e4e');
+  plt.ylabel("Feature names", fontsize=11,  color='#4f4e4e');
   sns.despine ();
-  plt.xticks (size = 20,  color='#4f4e4e');
-  plt.yticks (size = 20,  color='#4f4e4e');
+  plt.xticks (size = 10,  color='#4f4e4e');
+  plt.yticks (size = 10,  color='#4f4e4e');
   neg = mlines.Line2D([], [], color='#f47a60', marker='s', linestyle='None',
-                            markersize=10, label='negative');
+                            markersize=8, label='negative');
   pos = mlines.Line2D([], [], color='#316879', marker='s', linestyle='None',
-                            markersize=10, label='positive');
+                            markersize=8, label='positive');
 
-  plt.legend(handles=[neg, pos], loc = 2, bbox_to_anchor = (1,0.55), fontsize = 16);
+  plt.legend(handles=[neg, pos], loc = 2, bbox_to_anchor = (1,0.55), fontsize = 11);
+  mlflow.log_figure(fig, artifact_file = 'plots/Feature_importance.png')
 
 def r_a_score(clf, train_X, train_y, test_X, test_y):
   
@@ -173,17 +174,18 @@ def r_a_score(clf, train_X, train_y, test_X, test_y):
   ROC_AUC_train = round(roc_auc_score(train_y, y_pred_prob_train), 2)
   ROC_AUC_test = round(roc_auc_score(test_y, y_pred_prob_test), 2)
 
-  plt.figure(figsize=(12, 8))
+  fig = plt.figure(figsize=(8, 5))
   plt.plot([0,1],[0,1], 'k--')
   plt.plot(fpr1, tpr1, label= f"Train (AUC = {ROC_AUC_train})")
   plt.plot(fpr2, tpr2, label= f"Test (AUC = {ROC_AUC_test})")
   plt.legend(fontsize = 16)
-  plt.xlabel("False Positive Rate", fontsize=20,  color='#4f4e4e')
-  plt.ylabel("True Positive Rate", fontsize=20,  color='#4f4e4e')
-  plt.title('Receiver Operating Characteristic for the best model', fontsize=25,  color='#4f4e4e', fontweight = 'demibold')
-  plt.xticks (size = 20,  color='#4f4e4e');
-  plt.yticks (size = 20,  color='#4f4e4e');
+  plt.xlabel("False Positive Rate", fontsize=11,  color='#4f4e4e')
+  plt.ylabel("True Positive Rate", fontsize=11,  color='#4f4e4e')
+  plt.title('Receiver Operating Characteristic for the best model', fontsize=13,  color='#4f4e4e', fontweight = 'demibold')
+  plt.xticks (size = 10,  color='#4f4e4e');
+  plt.yticks (size = 10,  color='#4f4e4e');
   plt.show()
+  mlflow.log_figure(fig, artifact_file = 'plots/ROC_AUC.png')
 
   ## Pipeline
 
@@ -264,28 +266,59 @@ def pipe(df):
 
   return df
 
-def objective(space, model, train_X, train_y, cv):
+def objective(search_space, model, train_X, train_y):
     params = {
-        'penalty': space['clf__penalty'],
-        'C': space['clf__C'],
+        'clf__penalty': search_space['clf__penalty'],
+        'clf__C': search_space['clf__C'],
     }
-    clf = model.set_params(clf__penalty = params['penalty'], clf__C = params['C'])
-    score = cross_val_score(estimator = clf,
+    estimator = model.set_params(**params)
+    score = cross_val_score(estimator = estimator,
                             X = train_X,
                             y = train_y,
                             scoring = 'roc_auc',
-                            cv = cv,
-                            )
-
+                            cv = 3).mean()
+    print(score)
     print(f"AUC {score}, params {params}")
     return {'loss': -score.mean(), 
             'params': search_space,
             'status': STATUS_OK}
 
-search_space = {'clf__penalty': hp.choice(label='penalty', options=['l1', 'l2']),
-                'clf__C': hp.uniform(label='C', low = 0.0001, high = 100)}
+# search_space = {'penalty': hp.choice('penalty', ['l1', 'l2']),
+#                 'C': hp.uniform(label='C', low = 0.0001, high = 10)}
 
+
+# def objective(space):
+#     params = {
+#         'colsample_bytree': '{:.3f}'.format(space['colsample_bytree']),
+#         'learning_rate': '{:.3f}'.format(space['learning_rate']),
+#         'alpha' : '{:.3f}'.format(space['alpha']),
+#         'n_estimators': space['n_estimators']
+#     }
+    
+#     clf = XGBClassifier(
+#         objective ='binary:logistic',
+#         random_state=42,
+#         **params
+#     )
+    
+#     score = cross_val_score(clf, X_train, y_train, scoring='roc_auc', cv=10).mean()
+#     print("AUC {:.3f} params {}".format(score, params))
+#     return {'loss':1 - score, 'status': STATUS_OK }
+
+# space = {
+#     'colsample_bytree': hp.uniform('colsample_bytree', 0.3, 1.0),
+#     'learning_rate': hp.uniform('learning_rate', 0, 1),
+#     'alpha': hp.uniform('alpha', 0, 10),
+#     'n_estimators': hp.choice('n_estimators', [100, 1000, 3000])
+#     }
+
+# best = fmin(fn=objective,
+#             space=space,
+#             algo=tpe.suggest,
+#             max_evals=10)
 
 def Cr_Val(model, X, y, cv):
     CV_score = np.mean(cross_val_score(model, X = X, y = y, cv = cv, scoring = 'roc_auc'))
     return round(CV_score, 2)
+
+

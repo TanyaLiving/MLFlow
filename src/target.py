@@ -23,8 +23,7 @@ from mlflow.tracking import MlflowClient
 from urllib.parse import urlparse
 import yaml
 import os
-from hyperopt import space_eval
-import hyperopt.pyll
+import hyperopt.pyll.stochastic
 
 config_path = os.path.join('/home/asdf/prj/MLFlow/config/config.yaml')
 config = yaml.safe_load(open(config_path))['train_model']
@@ -74,6 +73,11 @@ with mlflow.start_run(run_name=config["run_name"], tags = {config['tag_name_key'
     
     mlflow.log_params(params)
     mlflow.log_metric("ROC_AUC_train_LR", ROC_AUC_train_LR)
+    mlflow.sklearn.log_model(my_pipeline, 'model')
+
+    conf_matr = conf_matrix(test_y, class_names, model_result(my_pipeline, train_X, train_y, test_X))
+
+    plot_conf_matrix('Logistic Regression', class_names, conf_matr)
 
 # Cross-validaion
 
@@ -113,41 +117,29 @@ with mlflow.start_run(run_name=config["run_name"], tags = {config['tag_name_key'
                                 cv = 10,
                                 error_score='raise').mean()
         print(f"AUC {score}, params {params}")
-        return {'loss': 1-score.mean(), 
-                'params': params,
-                'status': STATUS_OK}
-    trials = Trials()
-    
-    
-    max_evals = 1
 
+    trials = Trials()
 
     best = fmin(
             fn = objective,
             space = search_space,
             algo = tpe.suggest,
-            max_evals = max_evals,
+            max_evals = 100,
             trials = trials,
             rstate = np.random.default_rng(1),
             show_progressbar = True
     )
-    # for i in trials.results:
-    #     print(i['params']['clf__penalty'])
-    dict_trials = {i : trials.results[i]['params']['clf__penalty'] for i in range(max_evals)}
-    # print(dict_trials)
-    print()
-    print('trials.results')
-    print(trials.results)
     
-    best_params = space_eval(search_space, best)
+    # penalty_space = ['l1', 'l2']
+    best_params = {"penalty": search_space['clf__penalty'][best['clf__penalty']], 'C': best['C']}
     mlflow.log_params(best_params)
 
 # # Best model
 
     my_pipeline_tuned = Pipeline([
         ('vectorizer', TfidfVectorizer()),
-        ('clf', LogisticRegression(C = best_params['clf__C'], 
-                                penalty = best_params['clf__penalty'],
+        ('clf', LogisticRegression(C = best_params['C'], 
+                                penalty = best_params['penalty'],
                                 solver =  config['solver'],
                                 random_state =  config['random_state']))
     ])
@@ -157,15 +149,9 @@ with mlflow.start_run(run_name=config["run_name"], tags = {config['tag_name_key'
                 train_y,
                 test_X,  
                 )
-    mlflow.sklearn.log_model(my_pipeline_tuned, 'model')
 
     ROC_AUC_test_LR_tuned = round(roc_auc_score(test_y, my_pipeline_tuned.predict_proba(test_X)[:, 1]), 2)
-
     mlflow.log_metric("ROC_AUC_test_LR_tuned", ROC_AUC_test_LR_tuned)
-
-    conf_matr = conf_matrix(test_y, class_names, model_result(my_pipeline_tuned, train_X, train_y, test_X))
-
-    plot_conf_matrix('Logistic Regression', class_names, conf_matr)
 
 # Feature importance plots
 
