@@ -1,0 +1,59 @@
+version: "3.3"
+
+services:
+  data_preparation_servise:
+    container_name: data_preparation_container
+    image: data_prearation_image
+    build:
+      context: .
+      dockerfile: dockerfile.preparation
+    ports:
+      - "3000:3000"
+    volumes:
+      - type: bind
+        source: /home/asdf/prj/MLFlow/data
+        target: /MLFlow/data
+        volume:
+          nocopy: true
+    command: >
+      bash -c "python3 /MLFlow/src/preparation.py
+      && ls /MLFlow/data"
+
+  train_model_servise:
+    container_name: train_model_container
+    restart: on-failure
+    image: train_model_image
+    build: 
+      context: .
+      dockerfile: dockerfile.preparation
+    depends_on:
+      - data_preparation_servise
+    command: ["python3", "/MLFlow/src/train_model.py"]
+    ports:
+      - 3001:3001
+    volumes:
+      - type: bind
+        source: /home/asdf/prj/MLFlow/data
+        target: /MLFlow/data
+        volume:
+          nocopy: true
+      - type: bind
+        source: /home/asdf/prj/MLFlow/mlruns
+        target: /MLFlow/mlruns
+
+  mlflow_web_servise:
+    container_name: mlflow_container
+    restart: always
+    image: mlflow_server
+    build: 
+      context: .
+      dockerfile: dockerfile.mlflow
+    ports:
+      - 5000:5000
+    volumes:
+    - type: bind
+      source: /home/asdf/prj/MLFlow/mlruns
+      target: /mlflow/mlruns
+
+volumes:
+  data_preparation_servise:
