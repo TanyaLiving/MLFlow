@@ -9,17 +9,6 @@
 # sudo apt install openjdk-11-jre-headless
 # sudo apt install docker-compose
 
-# COMMANDS FOR DOCKER
-# Build container
-# sudo docker build -t server -f docker/Dockerfile . (-t - тэг контейнера, его имя, -f  - искать файлы во всем контексте докера, . - контекст докера  - в данном случае вся папка проекта
-
-
-
-# docker run --rm \
-#   --mount "type=bind,src=$(pwd)/volume,dst=/vopoleberezkastoyala" \
-#   myimage ./starspace train -trainFile /vopoleberezkastoyala/tagged_post.txt -model /vopoleberezkastoyala/model
-
-
 wheel == 0.37.1
 sklearn-pandas == 2.2.0
 scripts == 2.0

@@ -1,0 +1,21 @@
+#FROM sets the Base Image for subsequent instructions.
+FROM ubuntu:20.04
+# updating information about packages and dependencies in connected repositories
+# installing the necessary utilites (-y - Automatic yes to requests)
+# build-essential - it is a link to several other packages (such as make, gcc) that will be installed as dependencies
+# rm command removes files and directories permanently (-rf - recursive, force)
+#  -y - otion that tells apt-get to assume the answer to all prompts is yes
+
+## for not asking timezone
+ARG DEBIAN_FRONTEND=noninteractive
+
+
+RUN apt-get update \
+  && apt-get install -y python3-pip mysql-server libmysqlclient-dev libpq-dev python-dev python3-dev build-essential git \
+  && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt ./MLFlow/
+RUN pip install -r ./MLFlow/requirements.txt
+COPY . /MLFlow
+WORKDIR /MLFlow/
+# VOLUME /out
+CMD [ "python3",  "/MLFlow/src/train_model.py"]
