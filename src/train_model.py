@@ -33,8 +33,6 @@ test_preprocessed = pd.read_csv(config["data_path_test"], sep=";")
 
 train_preprocessed = pd.read_csv(config["data_path_train"], sep=";")
 
-# Splitting
-
 train_X = train_preprocessed.review.array
 train_y = train_preprocessed.sentiment.array
 
